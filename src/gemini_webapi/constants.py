@@ -133,11 +133,6 @@ class Model(Enum):
         build_model_header("fbb127bbb056c959", 1, 1),
         False,
     )
-    # BASIC_THINKING = (
-    #     "gemini-3-flash-thinking",
-    #     build_model_header("5bf011840784117a", 1),
-    #     False,
-    # )
     BASIC_LITE = (
         "gemini-3-lite",
         build_model_header("cf41b0e0dd7d53e5", 1, 6),
@@ -153,11 +148,6 @@ class Model(Enum):
         build_model_header("56fdd199312815e2", 4, 1),
         True,
     )
-    # PLUS_THINKING = (
-    #     "gemini-3-flash-thinking-plus",
-    #     build_model_header("e051ce1aa80aa576", 4),
-    #     True,
-    # )
     PLUS_LITE = (
         "gemini-3-lite-plus",
         build_model_header("8c46e95b1a07cecc", 4, 6),
@@ -173,11 +163,6 @@ class Model(Enum):
         build_model_header("56fdd199312815e2", 2, 1),
         True,
     )
-    # ADVANCED_THINKING = (
-    #     "gemini-3-flash-thinking-advanced",
-    #     build_model_header("e051ce1aa80aa576", 2),
-    #     True,
-    # )
     ADVANCED_LITE = (
         "gemini-3-lite-advanced",
         build_model_header("8c46e95b1a07cecc", 2, 6),

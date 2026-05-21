@@ -644,7 +644,7 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
                         action_labels = {
                             4: "Gemini Pro",
                             11: "Gemini Flash/Lite",
-                            15: "Extended Thinking Level",
+                            15: "Gemini Flash Thinking (Obsolete)",
                         }
                         label = action_labels.get(action_id, f"Gemini {category}")
                         display_target = f"{label} [{quota_id}]"
@@ -674,7 +674,7 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
                             quota_display = (
                                 "Unlimited"
                                 if (total == 0 and remaining == 0)
-                                else f"{remaining}/{total} remaining"
+                                else f"{remaining}/{total} credits or requests (obsolete) remaining"
                             )
                             logger.info(
                                 f"Account quota updated: {display_target} - {quota_display}{reset_str}"
@@ -1846,10 +1846,10 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
                     chat.rid = chat_backup["rid"]
                     chat.rcid = chat_backup["rcid"]
                 logger.debug(
-                    f"Stream parsing interrupted ({type(e).__name__}: {e!r}). Attempting to recover conversation context..."
+                    f"Stream parsing interrupted. Attempting to recover conversation context..."
                 )
                 raise APIError(
-                    f"Failed to parse response body from Google ({type(e).__name__}). This might be a temporary API change or invalid data."
+                    f"Failed to parse response body from Google ({type(e).__name__}: {e!r}). This might be a temporary API change or invalid data."
                 )
 
         # Update quotas after successful generation
