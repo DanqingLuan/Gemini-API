@@ -1185,6 +1185,7 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
                 temporary=temporary,
                 session_state=session_state,
                 deep_research=deep_research,
+                extended_thinking=extended_thinking,
                 **kwargs,
             ):
                 yield output
