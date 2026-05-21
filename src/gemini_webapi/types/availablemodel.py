@@ -17,11 +17,11 @@ class AvailableModel(BaseModel):
     Parameters
     ----------
     model_id: `str`
-        Hex identifier of the model (e.g. "9d8ca3786ebdfbea").
+        Hex identifier of the model.
     model_name: `str`
-        User-friendly name of the model (e.g. "gemini-3-pro").
+        User-friendly name of the model.
     display_name: `str`
-        Localised display name shown in the Gemini web UI (e.g. "Fast", "Thinking", "Pro").
+        Localised display name shown in the Gemini web UI.
     description: `str`
         Brief description of the model's capabilities.
     capacity: `int`

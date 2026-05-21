@@ -139,7 +139,9 @@ class Video(BaseModel):
 
         response = await req_client.get(url, headers=Headers.REFERER.value)
         if verbose:
-            logger.debug(f"HTTP Request: GET {url} [{response.status_code}] (HTTP/{format_http_version(response.http_version)})")
+            logger.debug(
+                f"HTTP Request: GET {url} [{response.status_code}] (HTTP/{format_http_version(response.http_version)})"
+            )
 
         if response.status_code == 200:
             path_obj_file = Path(filename)

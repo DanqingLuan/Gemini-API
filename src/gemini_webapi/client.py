@@ -121,6 +121,7 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
         "activity_task",
         "_running",
         "_cookies",
+        "_sessionid",
         "_reqid",
         "_model_registry",
         "_lock",
@@ -162,6 +163,7 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
         self.activity_task: Task | None = None
         self._running: bool = False
         self._cookies = Cookies()
+        self._sessionid = str(uuid.uuid4()).upper()
         self._reqid: int = random.randint(10000, 99999)
         self._model_registry: dict[str, AvailableModel] = {}
         self._lock = asyncio.Lock()
@@ -284,6 +286,7 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
                 self.language = language or "en"
                 self.push_id = push_id or "feeds/mcudyrk2a4khkz"
                 self._running = True
+                self._sessionid = str(uuid.uuid4()).upper()
                 self._reqid = random.randint(10000, 99999)
 
                 self.timeout = timeout
@@ -590,9 +593,9 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
         Parameters
         ----------
         flash: `bool`, optional
-            If True, fetches limits for Gemini Flash models.
+            If True, fetches limits for Gemini Flash and Flash Lite models.
         advanced: `bool`, optional
-            If True, fetches limits for Gemini Pro and Flash Thinking models.
+            If True, fetches limits for Gemini Pro models and Extended Thinking level.
         """
 
         if not self._check_account_status():
@@ -603,9 +606,9 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
             advanced = True
         to_fetch: list[tuple[str, str]] = []
         if flash:
-            to_fetch.append((GEMINI_FLASH_QUOTA_PAYLOAD, "Flash"))
+            to_fetch.append((GEMINI_FLASH_QUOTA_PAYLOAD, "Flash/Lite"))
         if advanced:
-            to_fetch.append((GEMINI_ADVANCED_QUOTA_PAYLOAD, "Thinking/Pro"))
+            to_fetch.append((GEMINI_ADVANCED_QUOTA_PAYLOAD, "Pro"))
 
         for payload_str, category in to_fetch:
             try:
@@ -638,8 +641,8 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
 
                         action_labels = {
                             4: "Gemini Pro",
-                            11: "Gemini Flash",
-                            15: "Gemini Flash Thinking",
+                            11: "Gemini Flash/Lite",
+                            15: "Extended Thinking Level",
                         }
                         label = action_labels.get(action_id, f"Gemini {category}")
                         display_target = f"{label} [{quota_id}]"
@@ -920,9 +923,9 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
         if not model_name or model_name == "unspecified":
             return {"flash": True, "advanced": True}
 
-        if "thinking" in model_name or "pro" in model_name:
+        if "pro" in model_name:
             flags["advanced"] = True
-        elif "flash" in model_name:
+        elif "lite" in model_name or "flash" in model_name:
             flags["flash"] = True
         else:
             flags["flash"] = True
@@ -1204,6 +1207,9 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
     ) -> AsyncGenerator[ModelOutput, None]:
         """
         Internal method which actually sends content generation requests.
+
+        When a model header is present, its JSPB model selector is extended with
+        the current client session id before the streaming request is sent.
         """
 
         assert prompt, "Prompt cannot be empty."
@@ -1305,9 +1311,17 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
 
                 inner_req_list[59] = uuid_val
 
+                model_headers = model.model_header.copy()
+                if MODEL_HEADER_KEY in model_headers:
+                    model_header = json.loads(model_headers[MODEL_HEADER_KEY])
+                    model_header.append(self._sessionid)
+                    model_headers[MODEL_HEADER_KEY] = json.dumps(model_header).decode(
+                        "utf-8"
+                    )
+
                 request_headers = {
                     **Headers.GEMINI.value,
-                    **model.model_header,
+                    **model_headers,
                     "x-goog-ext-525005358-jspb": f'["{uuid_val}",1]',
                     **Headers.SAME_DOMAIN.value,
                 }
@@ -2029,6 +2043,10 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
         """
         Execute a batch of requests to Gemini API.
 
+        The batch execution model header is parsed as JSPB data, extended with
+        the current client session id as its trailing value, and serialized back
+        into the header string before it is sent.
+
         Parameters
         ----------
         payloads: `list[RPCData]`
@@ -2059,9 +2077,16 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
             if self.session_id:
                 params["f.sid"] = self.session_id
 
+            batch_exec_headers = Headers.BATCH_EXEC.value.copy()
+            batch_exec_header = json.loads(batch_exec_headers[MODEL_HEADER_KEY])
+            batch_exec_header.append(self._sessionid)
+            batch_exec_headers[MODEL_HEADER_KEY] = json.dumps(batch_exec_header).decode(
+                "utf-8"
+            )
+
             request_headers = {
                 **Headers.GEMINI.value,
-                **Headers.BATCH_EXEC.value,
+                **batch_exec_headers,
                 **Headers.SAME_DOMAIN.value,
             }
 

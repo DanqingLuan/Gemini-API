@@ -14,10 +14,10 @@ DEFAULT_METADATA = ["", "", "", None, None, None, None, None, None, ""]
 
 MODEL_HEADER_KEY = "x-goog-ext-525001261-jspb"
 
-# Gemini Flash Quota: Targeted at Gemini Flash models
+# Gemini Flash Quota: Targeted at Gemini Flash & Flash Lite models
 GEMINI_FLASH_QUOTA_PAYLOAD = "[[[1,11],[2,11],[6,11]]]"
 
-# Gemini Advanced Quota: Targeted at Gemini Pro & Flash Thinking models
+# Gemini Advanced Quota: Targeted at Gemini Pro models & Extended Thinking level
 GEMINI_ADVANCED_QUOTA_PAYLOAD = "[[[1,4],[6,6],[1,15]]]"
 
 
@@ -27,9 +27,9 @@ def build_model_header(model_id: str, capacity_tail: str | int) -> dict[str, str
     """
 
     return {
-        MODEL_HEADER_KEY: f'[1,null,null,null,"{model_id}",null,null,0,[4],null,null,{capacity_tail}]',
+        MODEL_HEADER_KEY: f'[1,null,null,null,"{model_id}",null,null,0,[4,5,6,8],null,null,{capacity_tail}, null,null,1,2]',
         "x-goog-ext-73010989-jspb": "[0]",
-        "x-goog-ext-73010990-jspb": "[0]",
+        "x-goog-ext-73010990-jspb": "[0,0,0]",
     }
 
 
@@ -114,7 +114,7 @@ class Headers(Enum):
     }
     UPLOAD = {"X-Tenant-Id": "bard-storage"}
     BATCH_EXEC = {
-        "x-goog-ext-525001261-jspb": "[1,null,null,null,null,null,null,null,[4]]",
+        MODEL_HEADER_KEY: "[1,null,null,null,null,null,null,null,[4,5,6,8],null,null,null,null,null,null,null]",
         "x-goog-ext-73010989-jspb": "[0]",
     }
 
@@ -131,9 +131,14 @@ class Model(Enum):
         build_model_header("fbb127bbb056c959", 1),
         False,
     )
-    BASIC_THINKING = (
-        "gemini-3-flash-thinking",
-        build_model_header("5bf011840784117a", 1),
+    # BASIC_THINKING = (
+    #     "gemini-3-flash-thinking",
+    #     build_model_header("5bf011840784117a", 1),
+    #     False,
+    # )
+    BASIC_LITE = (
+        "gemini-3-lite",
+        build_model_header("cf41b0e0dd7d53e5", 1),
         False,
     )
     PLUS_PRO = (
@@ -146,9 +151,14 @@ class Model(Enum):
         build_model_header("56fdd199312815e2", 4),
         True,
     )
-    PLUS_THINKING = (
-        "gemini-3-flash-thinking-plus",
-        build_model_header("e051ce1aa80aa576", 4),
+    # PLUS_THINKING = (
+    #     "gemini-3-flash-thinking-plus",
+    #     build_model_header("e051ce1aa80aa576", 4),
+    #     True,
+    # )
+    PLUS_LITE = (
+        "gemini-3-lite-plus",
+        build_model_header("8c46e95b1a07cecc", 4),
         True,
     )
     ADVANCED_PRO = (
@@ -161,9 +171,14 @@ class Model(Enum):
         build_model_header("56fdd199312815e2", 2),
         True,
     )
-    ADVANCED_THINKING = (
-        "gemini-3-flash-thinking-advanced",
-        build_model_header("e051ce1aa80aa576", 2),
+    # ADVANCED_THINKING = (
+    #     "gemini-3-flash-thinking-advanced",
+    #     build_model_header("e051ce1aa80aa576", 2),
+    #     True,
+    # )
+    ADVANCED_LITE = (
+        "gemini-3-lite-advanced",
+        build_model_header("8c46e95b1a07cecc", 2),
         True,
     )
 
