@@ -1218,7 +1218,8 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
         Internal method which actually sends content generation requests.
 
         When a model header is present, its JSPB model selector is extended with
-        the current client session id before the streaming request is sent.
+        the current client session id before the streaming request is sent, and
+        the model number from that selector is mirrored into the request body.
         """
 
         assert prompt, "Prompt cannot be empty."
@@ -1287,7 +1288,7 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
 
         while True:
             try:
-                inner_req_list: list[Any] = [None] * 69
+                inner_req_list: list[Any] = [None] * 81
                 inner_req_list[0] = message_content
                 inner_req_list[1] = [self.language]
                 inner_req_list[2] = chat.metadata if chat else DEFAULT_METADATA
@@ -1314,7 +1315,9 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
                     inner_req_list[54] = [[[[[1]]]]]
                     inner_req_list[55] = [[1]]
                 inner_req_list[61] = []
-                inner_req_list[68] = 2 if extended_thinking else 1
+                inner_req_list[68] = 1
+                inner_req_list[79] = 1
+                inner_req_list[80] = 2 if extended_thinking else 1
 
                 uuid_val = str(uuid.uuid4()).upper()
 
@@ -1323,6 +1326,9 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
                 model_headers = model.model_header.copy()
                 if MODEL_HEADER_KEY in model_headers:
                     model_header = json.loads(model_headers[MODEL_HEADER_KEY])
+                    model_number = model_header[-1] if model_header else None
+                    if isinstance(model_number, int):
+                        inner_req_list[79] = model_number
                     model_header.append(2 if extended_thinking else 1)
                     model_header.append(self._sessionid)
                     model_headers[MODEL_HEADER_KEY] = json.dumps(model_header).decode(
