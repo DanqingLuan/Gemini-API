@@ -970,6 +970,7 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
         chat: Optional["ChatSession"] = None,
         temporary: bool = False,
         deep_research: bool = False,
+        extended_thinking: bool = False,
         **kwargs,
     ) -> ModelOutput:
         """
@@ -995,6 +996,8 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
             If set to `True`, the ongoing conversation will not show up in Gemini history.
         deep_research: `bool`, optional
             If set to `True`, will enable deep research mode and start creating a deep research plan.
+        extended_thinking: `bool`, optional
+            If set to `True`, will enable extended thinking mode, default to standard.
         kwargs: `dict`, optional
             Additional arguments which will be passed to the post request.
             Refer to `curl_cffi.requests.AsyncSession.request` for more information.
@@ -1063,6 +1066,7 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
                 temporary=temporary,
                 session_state=session_state,
                 deep_research=deep_research,
+                extended_thinking=extended_thinking,
                 **kwargs,
             ):
                 pass
@@ -1093,6 +1097,7 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
         chat: Optional["ChatSession"] = None,
         temporary: bool = False,
         deep_research: bool = False,
+        extended_thinking: bool = False,
         **kwargs,
     ) -> AsyncGenerator[ModelOutput, None]:
         """
@@ -1118,6 +1123,8 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
             If set to `True`, the ongoing conversation will not show up in Gemini history.
         deep_research: `bool`, optional
             If set to `True`, will enable deep research mode and start creating a deep research plan.
+        extended_thinking: `bool`, optional
+            If set to `True`, will enable extended thinking mode, default to standard.
         kwargs: `dict`, optional
             Additional arguments passed to `curl_cffi.requests.AsyncSession.stream`.
 
@@ -1203,6 +1210,7 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
         temporary: bool = False,
         session_state: dict[str, Any] | None = None,
         deep_research: bool = False,
+        extended_thinking: bool = False,
         **kwargs,
     ) -> AsyncGenerator[ModelOutput, None]:
         """
@@ -1305,7 +1313,7 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
                     inner_req_list[54] = [[[[[1]]]]]
                     inner_req_list[55] = [[1]]
                 inner_req_list[61] = []
-                inner_req_list[68] = 2
+                inner_req_list[68] = 2 if extended_thinking else 1
 
                 uuid_val = str(uuid.uuid4()).upper()
 
@@ -1314,6 +1322,7 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
                 model_headers = model.model_header.copy()
                 if MODEL_HEADER_KEY in model_headers:
                     model_header = json.loads(model_headers[MODEL_HEADER_KEY])
+                    model_header.append(2 if extended_thinking else 1)
                     model_header.append(self._sessionid)
                     model_headers[MODEL_HEADER_KEY] = json.dumps(model_header).decode(
                         "utf-8"
@@ -2217,6 +2226,7 @@ class ChatSession:
         files: list[str | Path | bytes | io.BytesIO] | None = None,
         temporary: bool = False,
         deep_research: bool = False,
+        extended_thinking: bool = False,
         **kwargs,
     ) -> ModelOutput:
         """
@@ -2235,6 +2245,8 @@ class ChatSession:
             and create a new chat session under the hood.
         deep_research: `bool`, optional
             If set to `True`, will enable deep research mode and start creating a deep research plan.
+        extended_thinking: `bool`, optional
+            If set to `True`, will enable extended thinking mode, default to standard.
         kwargs: `dict`, optional
             Additional arguments which will be passed to the post request.
             Refer to `curl_cffi.requests.AsyncSession.request` for more information.
@@ -2265,6 +2277,7 @@ class ChatSession:
             chat=self,
             temporary=temporary,
             deep_research=deep_research,
+            extended_thinking=extended_thinking,
             **kwargs,
         )
 
@@ -2274,6 +2287,7 @@ class ChatSession:
         files: list[str | Path | bytes | io.BytesIO] | None = None,
         temporary: bool = False,
         deep_research: bool = False,
+        extended_thinking: bool = False,
         **kwargs,
     ) -> AsyncGenerator[ModelOutput, None]:
         """
@@ -2294,6 +2308,8 @@ class ChatSession:
             and create a new chat session under the hood.
         deep_research: `bool`, optional
             If set to `True`, will enable deep research mode and start creating a deep research plan.
+        extended_thinking: `bool`, optional
+            If set to `True`, will enable extended thinking mode, default to standard.
         kwargs: `dict`, optional
             Additional arguments passed to the streaming request.
 
@@ -2311,6 +2327,7 @@ class ChatSession:
             chat=self,
             temporary=temporary,
             deep_research=deep_research,
+            extended_thinking=extended_thinking,
             **kwargs,
         ):
             yield output

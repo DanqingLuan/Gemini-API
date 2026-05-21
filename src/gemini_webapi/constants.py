@@ -21,13 +21,15 @@ GEMINI_FLASH_QUOTA_PAYLOAD = "[[[1,11],[2,11],[6,11]]]"
 GEMINI_ADVANCED_QUOTA_PAYLOAD = "[[[1,4],[6,6],[1,15]]]"
 
 
-def build_model_header(model_id: str, capacity_tail: str | int) -> dict[str, str]:
+def build_model_header(
+    model_id: str, capacity_tail: str | int, model_number: int
+) -> dict[str, str]:
     """
     Builds the complete HTTP header dictionary required for model selection.
     """
 
     return {
-        MODEL_HEADER_KEY: f'[1,null,null,null,"{model_id}",null,null,0,[4,5,6,8],null,null,{capacity_tail}, null,null,1,2]',
+        MODEL_HEADER_KEY: f'[1,null,null,null,"{model_id}",null,null,0,[4,5,6,8],null,null,{capacity_tail}, null,null,{model_number}]',
         "x-goog-ext-73010989-jspb": "[0]",
         "x-goog-ext-73010990-jspb": "[0,0,0]",
     }
@@ -123,12 +125,12 @@ class Model(Enum):
     UNSPECIFIED = ("unspecified", {}, False)
     BASIC_PRO = (
         "gemini-3-pro",
-        build_model_header("9d8ca3786ebdfbea", 1),
+        build_model_header("9d8ca3786ebdfbea", 1, 3),
         False,
     )
     BASIC_FLASH = (
         "gemini-3-flash",
-        build_model_header("fbb127bbb056c959", 1),
+        build_model_header("fbb127bbb056c959", 1, 1),
         False,
     )
     # BASIC_THINKING = (
@@ -138,17 +140,17 @@ class Model(Enum):
     # )
     BASIC_LITE = (
         "gemini-3-lite",
-        build_model_header("cf41b0e0dd7d53e5", 1),
+        build_model_header("cf41b0e0dd7d53e5", 1, 6),
         False,
     )
     PLUS_PRO = (
         "gemini-3-pro-plus",
-        build_model_header("e6fa609c3fa255c0", 4),
+        build_model_header("e6fa609c3fa255c0", 4, 3),
         True,
     )
     PLUS_FLASH = (
         "gemini-3-flash-plus",
-        build_model_header("56fdd199312815e2", 4),
+        build_model_header("56fdd199312815e2", 4, 1),
         True,
     )
     # PLUS_THINKING = (
@@ -158,17 +160,17 @@ class Model(Enum):
     # )
     PLUS_LITE = (
         "gemini-3-lite-plus",
-        build_model_header("8c46e95b1a07cecc", 4),
+        build_model_header("8c46e95b1a07cecc", 4, 6),
         True,
     )
     ADVANCED_PRO = (
         "gemini-3-pro-advanced",
-        build_model_header("e6fa609c3fa255c0", 2),
+        build_model_header("e6fa609c3fa255c0", 2, 3),
         True,
     )
     ADVANCED_FLASH = (
         "gemini-3-flash-advanced",
-        build_model_header("56fdd199312815e2", 2),
+        build_model_header("56fdd199312815e2", 2, 1),
         True,
     )
     # ADVANCED_THINKING = (
@@ -178,7 +180,7 @@ class Model(Enum):
     # )
     ADVANCED_LITE = (
         "gemini-3-lite-advanced",
-        build_model_header("8c46e95b1a07cecc", 2),
+        build_model_header("8c46e95b1a07cecc", 2, 6),
         True,
     )
 
