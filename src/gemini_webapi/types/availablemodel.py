@@ -28,6 +28,8 @@ class AvailableModel(BaseModel):
         Internal tier/capacity value.
     capacity_field: `int`
         Internal proto field number.
+    model_number: `int`
+        Internal model number mirrored into generation request payloads.
     is_available: `bool`, optional
         Whether the model is available for use based on account status. Defaults to `True`.
     """
@@ -38,6 +40,7 @@ class AvailableModel(BaseModel):
     description: str
     capacity: int
     capacity_field: int = 12
+    model_number: int = 1
     is_available: bool = True
 
     def __str__(self) -> str:
@@ -65,7 +68,7 @@ class AvailableModel(BaseModel):
         else:
             tail = str(self.capacity)
 
-        return build_model_header(self.model_id, tail)
+        return build_model_header(self.model_id, tail, self.model_number)
 
     @property
     def advanced_only(self) -> bool:
@@ -138,5 +141,32 @@ class AvailableModel(BaseModel):
                 base_key = "BASIC_" + member.name.split("_", 1)[-1]
                 base_member = getattr(Model, base_key, member)
                 result[model_id] = base_member.model_name
+
+        return result
+
+    @staticmethod
+    def build_model_id_number_mapping() -> dict[str, int]:
+        """
+        Build a mapping from `model_id` to the model number embedded in static model headers.
+        """
+
+        result: dict[str, int] = {}
+        for member in Model:
+            if member is Model.UNSPECIFIED:
+                continue
+
+            header_value = member.model_header.get(MODEL_HEADER_KEY, "")
+            if not header_value:
+                continue
+
+            try:
+                parsed = json.loads(header_value)
+                model_id = get_nested_value(parsed, [4])
+                model_number = parsed[-1] if parsed else None
+            except json.JSONDecodeError:
+                continue
+
+            if model_id and isinstance(model_number, int) and model_id not in result:
+                result[model_id] = model_number
 
         return result

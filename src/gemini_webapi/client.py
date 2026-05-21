@@ -555,6 +555,7 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
                 )
 
                 id_name_mapping = AvailableModel.build_model_id_name_mapping()
+                id_number_mapping = AvailableModel.build_model_id_number_mapping()
 
                 for model_data in models_list:
                     if isinstance(model_data, list):
@@ -575,6 +576,7 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
                                 description=description,
                                 capacity=capacity,
                                 capacity_field=capacity_field,
+                                model_number=id_number_mapping.get(model_id, 1),
                                 is_available=is_model_available,
                             )
                             self._model_registry[model_id] = model
@@ -1844,7 +1846,7 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
                     chat.rid = chat_backup["rid"]
                     chat.rcid = chat_backup["rcid"]
                 logger.debug(
-                    "Stream parsing interrupted. Attempting to recover conversation context..."
+                    f"Stream parsing interrupted ({type(e).__name__}: {e!r}). Attempting to recover conversation context..."
                 )
                 raise APIError(
                     f"Failed to parse response body from Google ({type(e).__name__}). This might be a temporary API change or invalid data."
