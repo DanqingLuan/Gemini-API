@@ -817,13 +817,15 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
 
     async def _fetch_usage_info(self) -> None:
         """
-        Fetch compute-usage metrics shown in Gemini's usage metrics window.
+        Fetch compute-based usage limits shown in Gemini's usage limits window.
 
-        The newer GetUsageInfo RPC is compute-usage based rather than request
+        The newer GetUsageInfo RPC is compute-based usage rather than request
         quota based. It returns the plan tier, the overage AI credits preference,
         and usage fractions for the current 5-hour and weekly windows. Each
-        usage fraction is converted to the rounded percentage used by the web UI,
-        and each metric exposes remaining credits plus a formatted reset time.
+        metric is exposed once at its top-level window key with remaining credits,
+        the rounded percentage used by the web UI, and a formatted reset time.
+        When the RPC includes an AI credit metric, its remaining credits are
+        stored separately as ``ai_credits_remaining``.
         """
 
         if not self._check_account_status():
@@ -865,10 +867,8 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
                     "label": tier_labels.get(tier_id),
                 },
                 "use_overage_ai_credits": use_overage_ai_credits,
-                "metrics": {},
                 "current_5h": None,
                 "weekly": None,
-                "remaining_credits": None,
             }
 
             if not isinstance(usage_items, list):
@@ -883,10 +883,10 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
                 if reset_ts:
                     reset_at = datetime.fromtimestamp(
                         reset_ts, tz=timezone.utc
-                    ).astimezone().isoformat()
+                ).astimezone().isoformat()
 
                 if metric_type == 3:
-                    usage_info["remaining_credits"] = get_nested_value(item, [0])
+                    usage_info["ai_credits_remaining"] = remaining
                     continue
 
                 metric_label, window = metric_windows.get(
@@ -906,7 +906,6 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
                     "reset_at": reset_at,
                 }
                 usage_info[metric_label] = metric_info
-                usage_info["metrics"][metric_label] = metric_info
 
         self._usage_info = usage_info
         self._quotas["usage_info"] = usage_info
