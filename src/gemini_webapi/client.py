@@ -128,6 +128,7 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
         "_recent_chats",  # From ChatMixin
         "_gems",  # From GemMixin
         "_quotas",
+        "_usage_info",
         "_abuse_status",
         "kwargs",
     ]
@@ -168,6 +169,7 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
         self._model_registry: dict[str, AvailableModel] = {}
         self._lock = asyncio.Lock()
         self._quotas: dict[str, dict] = {}
+        self._usage_info: dict[str, Any] = {}
         self.kwargs = kwargs
 
         if secure_1psid:
@@ -180,9 +182,16 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
     @property
     def quotas(self) -> dict[str, dict]:
         """
-        Get the current account quotas/limits.
+        Get the current account quotas/limits (obsolete, use `usage_info` for the newer compute-usage based metrics).
         """
         return self._quotas
+
+    @property
+    def usage_info(self) -> dict[str, Any]:
+        """
+        Get the current compute-usage metrics from Gemini usage info.
+        """
+        return self._usage_info
 
     @property
     def abuse_status(self) -> dict | None:
@@ -499,6 +508,7 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
         await self._fetch_quota()
         await self._fetch_extra_quota()
         await self._fetch_abuse_status()
+        await self._fetch_usage_info()
 
     async def _fetch_user_status(self) -> None:
         """
@@ -608,7 +618,7 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
             advanced = True
         to_fetch: list[tuple[str, str]] = []
         if flash:
-            to_fetch.append((GEMINI_FLASH_QUOTA_PAYLOAD, "Flash/Lite"))
+            to_fetch.append((GEMINI_FLASH_QUOTA_PAYLOAD, "Flash"))
         if advanced:
             to_fetch.append((GEMINI_ADVANCED_QUOTA_PAYLOAD, "Pro"))
 
@@ -643,8 +653,8 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
 
                         action_labels = {
                             4: "Gemini Pro",
-                            11: "Gemini Flash/Lite",
-                            15: "Gemini Flash Thinking (Obsolete)",
+                            11: "Gemini Flash",
+                            15: "Gemini Flash Thinking",
                         }
                         label = action_labels.get(action_id, f"Gemini {category}")
                         display_target = f"{label} [{quota_id}]"
@@ -674,7 +684,7 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
                             quota_display = (
                                 "Unlimited"
                                 if (total == 0 and remaining == 0)
-                                else f"{remaining}/{total} credits or requests (obsolete) remaining"
+                                else f"{remaining}/{total} credits remaining"
                             )
                             logger.info(
                                 f"Account quota updated: {display_target} - {quota_display}{reset_str}"
@@ -804,6 +814,105 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
                 logger.info(
                     f"Extra quota check: Blocked={is_blocked}, UsageLevel={usage_level}"
                 )
+
+    async def _fetch_usage_info(self) -> None:
+        """
+        Fetch compute-usage metrics shown in Gemini's usage metrics window.
+
+        The newer GetUsageInfo RPC is compute-usage based rather than request
+        quota based. It returns the plan tier, the overage AI credits preference,
+        and usage fractions for the current 5-hour and weekly windows. Each
+        usage fraction is converted to the rounded percentage used by the web UI,
+        and each metric exposes remaining credits plus a formatted reset time.
+        """
+
+        if not self._check_account_status():
+            return
+
+        response = await self._batch_execute(
+            [
+                RPCData(
+                    rpcid=GRPC.GET_USAGE_INFO,
+                    payload="[]",
+                )
+            ],
+            source_path="/usage",
+        )
+
+        tier_id = None
+        use_overage_ai_credits = None
+        usage_info: dict[str, Any] = {}
+        tier_labels = {
+            1: "FREE",
+            2: "PRO",
+            3: "ULTRA",
+            4: "PLUS",
+            6: "ULTRA",
+        }
+        metric_windows = {
+            1: ("current_5h", "5h"),
+            2: ("weekly", "weekly"),
+        }
+
+        for part_body in self._parse_rpc_results(response.text, GRPC.GET_USAGE_INFO):
+            tier_id = get_nested_value(part_body, [0])
+            usage_items = get_nested_value(part_body, [1], [])
+            use_overage_ai_credits = get_nested_value(part_body, [2])
+
+            usage_info = {
+                "tier": {
+                    "id": tier_id,
+                    "label": tier_labels.get(tier_id),
+                },
+                "use_overage_ai_credits": use_overage_ai_credits,
+                "metrics": {},
+                "current_5h": None,
+                "weekly": None,
+                "remaining_credits": None,
+            }
+
+            if not isinstance(usage_items, list):
+                continue
+
+            for item in usage_items:
+                remaining = get_nested_value(item, [0])
+                metric_type = get_nested_value(item, [2])
+                usage_level = get_nested_value(item, [1])
+                reset_ts = get_nested_value(item, [3, 0, 0])
+                reset_at = None
+                if reset_ts:
+                    reset_at = datetime.fromtimestamp(
+                        reset_ts, tz=timezone.utc
+                    ).astimezone().isoformat()
+
+                if metric_type == 3:
+                    usage_info["remaining_credits"] = get_nested_value(item, [0])
+                    continue
+
+                metric_label, window = metric_windows.get(
+                    metric_type, (f"type_{metric_type}", "unknown")
+                )
+                usage_percentage = (
+                    round(usage_level * 100)
+                    if isinstance(usage_level, (int, float))
+                    else None
+                )
+                metric_info = {
+                    "type": metric_type,
+                    "window": window,
+                    "remaining_credits": remaining,
+                    "usage_level": usage_level,
+                    "usage_percentage": usage_percentage,
+                    "reset_at": reset_at,
+                }
+                usage_info[metric_label] = metric_info
+                usage_info["metrics"][metric_label] = metric_info
+
+        self._usage_info = usage_info
+        self._quotas["usage_info"] = usage_info
+
+        if self.verbose and usage_info:
+            logger.info(f"Usage info updated: {usage_info}")
 
     async def _fetch_preferences(self) -> None:
         """
@@ -1852,9 +1961,8 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
                     f"Failed to parse response body from Google ({type(e).__name__}: {e!r}). This might be a temporary API change or invalid data."
                 )
 
-        # Update quotas after successful generation
-        quota_flags = self._get_quota_flags(model)
-        await self._fetch_quota(**quota_flags)
+        # Refresh usage info after generation to update remaining credits and usage level
+        await self._fetch_usage_info()
 
     def _parse_candidate(
         self, candidate_data: list[Any], cid: str, rid: str, rcid: str

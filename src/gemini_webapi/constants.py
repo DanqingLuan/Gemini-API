@@ -96,6 +96,7 @@ class GRPC(StrEnum):
     UPDATE_USER_PREFERENCES = "L5adhe"
     READ_USER_PREFERENCES = "ESY5D"
     CONTINUE_SHARED_CONVERSATION = "ra9Swb"
+    GET_USAGE_INFO = "jSf9Qc"
 
 
 class Headers(Enum):
