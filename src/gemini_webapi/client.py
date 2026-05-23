@@ -1845,6 +1845,17 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
                     chat.cid = chat_backup["cid"]
                     chat.rid = chat_backup["rid"]
                     chat.rcid = chat_backup["rcid"]
+
+                import traceback
+                logger.error("=" * 60)
+                logger.error("【Gemini API 解析异常调试信息】")
+                logger.error(f"异常类型: {type(e).__name__}")
+                logger.error(f"异常详细信息: {e!r}")
+                logger.error(f"详细堆栈追踪:\n{traceback.format_exc()}")
+                logger.error(f"发生错误时已接收到的原始响应 (前5000字):\n{_raw_response[:5000]}")
+                logger.error(f"当前未解析完成的缓冲区 (Buffer):\n{buffer}")
+                logger.error("=" * 60)
+
                 logger.debug(
                     f"Stream parsing interrupted. Attempting to recover conversation context..."
                 )
