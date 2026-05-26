@@ -1373,7 +1373,7 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
                         )
 
                     buffer = ""
-                    _raw_response = ""  # Accumulates full raw response for debugging
+                    _raw_response_parts = [] if self.verbose else None  # Only accumulate when verbose is on (perf fix: avoids O(n²) string concat)
                     decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
 
                     last_texts: dict[str, str] = session_state["last_texts"]
@@ -1690,7 +1690,8 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
 
                         decoded_chunk = decoder.decode(chunk, final=False)
                         buffer += decoded_chunk
-                        _raw_response += decoded_chunk
+                        if _raw_response_parts is not None:
+                            _raw_response_parts.append(decoded_chunk)
                         if buffer.startswith(")]}'"):
                             buffer = buffer[4:].lstrip()
                         parsed_parts, buffer = parse_response_by_frame(buffer)
@@ -1726,7 +1727,8 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
                     # Final flush
                     final_decoded = decoder.decode(b"", final=True)
                     buffer += final_decoded
-                    _raw_response += final_decoded
+                    if _raw_response_parts is not None:
+                        _raw_response_parts.append(final_decoded)
                     if buffer:
                         parsed_parts, _ = parse_response_by_frame(buffer)
                         async for out in _process_parts(parsed_parts):
@@ -1817,7 +1819,8 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
                             )
 
                     # Full raw HTTP response text at completion
-                    if self.verbose:
+                    if self.verbose and _raw_response_parts:
+                        _raw_response = "".join(_raw_response_parts)
                         if _raw_response.startswith(")]}'"):
                             _raw_response = _raw_response[4:].lstrip()
                         _parsed_full, _ = parse_response_by_frame(_raw_response)
