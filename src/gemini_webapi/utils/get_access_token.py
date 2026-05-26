@@ -81,7 +81,7 @@ async def get_access_token(
         impersonate=impersonate,
         proxy=proxy,
         allow_redirects=CurlFollow.SAFE,
-        http_version=CurlHttpVersion.V3,
+        http_version=CurlHttpVersion.V2_0,
         verify=verify,
     )
 
