@@ -64,10 +64,10 @@ from .utils import (
     get_delta_by_fp_len,
     get_nested_value,
     parse_file_name,
-    parse_response_by_frame,
     rotate_1psidts,
     running,
     save_cookies,
+    StreamingFrameParser,
     upload_file,
     logger,
 )
@@ -881,9 +881,11 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
                 reset_ts = get_nested_value(item, [3, 0, 0])
                 reset_at = None
                 if reset_ts:
-                    reset_at = datetime.fromtimestamp(
-                        reset_ts, tz=timezone.utc
-                ).astimezone().isoformat()
+                    reset_at = (
+                        datetime.fromtimestamp(reset_ts, tz=timezone.utc)
+                        .astimezone()
+                        .isoformat()
+                    )
 
                 if metric_type == 3:
                     usage_info["ai_credits_remaining"] = remaining
@@ -1215,7 +1217,9 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
 
         This method sends a request to Gemini and yields partial responses as they arrive.
         It automatically calculates the text delta (new characters) to provide a smooth
-        streaming experience. It also continuously updates chat metadata and candidate IDs.
+        streaming experience. It parses length-prefixed response frames incrementally
+        so large unfinished frames are not rescanned after every network chunk. It also
+        continuously updates chat metadata and candidate IDs.
 
         Parameters
         ----------
@@ -1329,7 +1333,9 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
 
         When a model header is present, its JSPB model selector is extended with
         the current client session id before the streaming request is sent, and
-        the model number from that selector is mirrored into the request body.
+        the model number from that selector is mirrored into the request body. The
+        streaming response parser keeps partial frame state internally to avoid
+        repeated scans of large cumulative response frames.
         """
 
         assert prompt, "Prompt cannot be empty."
@@ -1480,8 +1486,8 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
                             f"Failed to generate contents. Status: {response.status_code}"
                         )
 
-                    buffer = ""
-                    _raw_response = ""  # Accumulates full raw response for debugging
+                    stream_parser = StreamingFrameParser()
+                    _raw_response_parts = []
                     decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
 
                     last_texts: dict[str, str] = session_state["last_texts"]
@@ -1797,11 +1803,9 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
                             break
 
                         decoded_chunk = decoder.decode(chunk, final=False)
-                        buffer += decoded_chunk
-                        _raw_response += decoded_chunk
-                        if buffer.startswith(")]}'"):
-                            buffer = buffer[4:].lstrip()
-                        parsed_parts, buffer = parse_response_by_frame(buffer)
+                        if self.verbose:
+                            _raw_response_parts.append(decoded_chunk)
+                        parsed_parts = stream_parser.feed(decoded_chunk)
 
                         got_update = False
                         async for out in _process_parts(parsed_parts):
@@ -1831,15 +1835,14 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
                                     await self.close()
                                     break
 
-                    # Final flush
                     final_decoded = decoder.decode(b"", final=True)
-                    buffer += final_decoded
-                    _raw_response += final_decoded
-                    if buffer:
-                        parsed_parts, _ = parse_response_by_frame(buffer)
-                        async for out in _process_parts(parsed_parts):
-                            has_generated_text = True
-                            yield out
+                    if self.verbose:
+                        _raw_response_parts.append(final_decoded)
+                    parsed_parts = stream_parser.feed(final_decoded)
+                    parsed_parts.extend(stream_parser.flush())
+                    async for out in _process_parts(parsed_parts):
+                        has_generated_text = True
+                        yield out
 
                     if not is_completed or is_thinking or is_queueing:
                         if (
@@ -1924,11 +1927,11 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
                                 "The original request may have been silently aborted by Google."
                             )
 
-                    # Full raw HTTP response text at completion
                     if self.verbose:
-                        if _raw_response.startswith(")]}'"):
-                            _raw_response = _raw_response[4:].lstrip()
-                        _parsed_full, _ = parse_response_by_frame(_raw_response)
+                        _raw_response = "".join(_raw_response_parts)
+                        debug_parser = StreamingFrameParser()
+                        _parsed_full = debug_parser.feed(_raw_response)
+                        _parsed_full.extend(debug_parser.flush())
                         logger.debug(
                             f"Full raw response received (parsed into {len(_parsed_full)} parts)"
                         )
@@ -1954,7 +1957,7 @@ class GeminiClient(ChatMixin, GemMixin, ResearchMixin):
                     chat.rid = chat_backup["rid"]
                     chat.rcid = chat_backup["rcid"]
                 logger.debug(
-                    f"Stream parsing interrupted. Attempting to recover conversation context..."
+                    "Stream parsing interrupted. Attempting to recover conversation context..."
                 )
                 raise APIError(
                     f"Failed to parse response body from Google ({type(e).__name__}: {e!r}). This might be a temporary API change or invalid data."
